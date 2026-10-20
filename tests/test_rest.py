@@ -102,8 +102,12 @@ async def test_old_docs_routes_removed(app):
         for path in ("/api/v1/docs/d1", "/api/v1/docs/d1/info"):
             r = await c.get(path, headers=HEADERS)
             assert r.status_code == 404
-            # 路由已移除：非业务 envelope（兜底 404 响应）
-            assert r.text != '{"code":0,"message":"ok"}'
+            # 路由已移除：404 且非业务成功 envelope（兜底响应可能是纯文本）
+            try:
+                body = r.json()
+            except ValueError:
+                body = None
+            assert body is None or "detail" in body or body.get("code") != 0
 
 
 async def test_unauthorized(app):

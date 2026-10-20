@@ -1,7 +1,7 @@
 # tests/test_service.py
 import pytest
 
-from app.service import DocumentService, UpstreamError
+from app.service import DocumentService, UpstreamError, _a1_range
 
 
 class FakeWedoc:
@@ -149,6 +149,37 @@ def test_get_smartsheet_sheets():
     assert ("smartsheet_sheets", "d1", {}) in fake.calls
 
 
+def test_get_spreadsheet_records_null_counts():
+    # 上游显式返回 null 的行列数不应导致 TypeError
+    fake = FakeWedoc(
+        props=[
+            {"sheet_id": "s1", "title": "Null", "row_count": None, "column_count": None},
+            {"sheet_id": "s2", "title": "Ok", "row_count": 1, "column_count": 1},
+        ],
+        range_data={"rows": []},
+    )
+    svc = make_service(fake)
+    assert svc.get_spreadsheet_records("d1", "s1") == {
+        "sheet_id": "s1",
+        "title": "Null",
+        "data": [],
+    }
+    # null 行列数不应触发 range_data 调用
+    assert not [c for c in fake.calls if c[0] == "range"]
+
+
+def test_get_smartsheet_sheets_empty():
+    # 上游响应缺少 sheet_list 键（仅 errcode=0）→ 返回空列表
+    class NoSheetListWedoc(FakeWedoc):
+        def query_smartsheet(self, docid, **kwargs):
+            self.calls.append(("smartsheet_sheets", docid, kwargs))
+            return {"errcode": 0}
+
+    fake = NoSheetListWedoc()
+    svc = make_service(fake)
+    assert svc.get_smartsheet_sheets("d1") == []
+
+
 def test_get_smartsheet_records():
     fake = FakeWedoc(records=[{"record_id": "r1", "values": {"k": "v"}}])
     svc = make_service(fake)
@@ -182,3 +213,20 @@ def test_get_smartsheet_records_stops_on_non_monotonic_next():
     # next (0) <= 当前 offset (0)：不应死循环，只取一页
     assert svc.get_smartsheet_records("d1", "s1") == [{"k": "v1"}]
     assert len([c for c in fake.calls if c[0] == "records"]) == 1
+
+
+@pytest.mark.parametrize(
+    ("n_rows", "n_cols", "expected"),
+    [
+        (2, 2, "A1:B2"),
+        (5000, 600, "A1:J1000"),
+        # 单元格上限生效：10000 // 51 = 196 列
+        (51, 200, "A1:GN51"),
+        # 列上限 200 生效
+        (1, 300, "A1:GR1"),
+        (0, 5, ""),
+        (5, 0, ""),
+    ],
+)
+def test_a1_range(n_rows, n_cols, expected):
+    assert _a1_range(n_rows, n_cols) == expected

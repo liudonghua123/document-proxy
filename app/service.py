@@ -8,7 +8,8 @@ from .config import Settings
 from .formatting import grid_to_records, node_to_markdown, records_to_compact
 
 # 上游 errcode → HTTP 404 的"文档不存在"错误码
-_NOT_FOUND_CODES = {1934008}
+_ERR_DOC_NOT_FOUND = 1934008
+_NOT_FOUND_CODES = {_ERR_DOC_NOT_FOUND}
 
 
 class UpstreamError(Exception):
@@ -67,9 +68,9 @@ class DocumentService:
         props = self.get_spreadsheet_sheet_props(docid)
         prop = next((p for p in props if p.get("sheet_id") == sheet_id), None)
         if prop is None:
-            raise UpstreamError(1934008, f"sheet {sheet_id} not found")
-        row_count = prop.get("row_count", 0)
-        col_count = prop.get("column_count", 0)
+            raise UpstreamError(_ERR_DOC_NOT_FOUND, f"sheet {sheet_id} not found")
+        row_count = prop.get("row_count") or 0
+        col_count = prop.get("column_count") or 0
         if row_count <= 0 or col_count <= 0:
             return {"sheet_id": sheet_id, "title": prop.get("title", ""), "data": []}
         range_str = _a1_range(row_count, col_count)
@@ -84,6 +85,7 @@ class DocumentService:
             "data": grid_to_records(rows),
         }
 
+    # 智能表格不做 sheet_id 预校验，交由上游报错（经 _check 转换）
     def get_smartsheet_sheets(self, docid: str) -> List[Dict[str, Any]]:
         resp = self._wedoc.query_smartsheet(docid=docid)
         self._check(resp)
@@ -111,6 +113,8 @@ class DocumentService:
 
 def _a1_range(n_rows: int, n_cols: int) -> str:
     """A1 表示法范围，上限保护：行<=1000、列<=200、单元格<=10000。"""
+    if n_rows <= 0 or n_cols <= 0:
+        return ""
     n_rows = min(n_rows, 1000)
     n_cols = min(n_cols, 200, max(1, 10000 // n_rows))
     return f"A1:{_col_name(n_cols)}{n_rows}"
