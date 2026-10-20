@@ -78,7 +78,8 @@ class DocumentService:
             docid=docid, sheet_id=sheet_id, range_str=range_str
         )
         self._check(data_resp)
-        rows = data_resp.get("data", {}).get("result", {}).get("rows", [])
+        # 实测返回结构：{"errcode": 0, "grid_data": {"rows": [...]}}
+        rows = data_resp.get("grid_data", {}).get("rows", [])
         return {
             "sheet_id": sheet_id,
             "title": prop.get("title", ""),

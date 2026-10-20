@@ -8,9 +8,15 @@ _LIST_PREFIX = {11: "- ", 12: "1. ", 13: "1. "}
 
 
 def cell_to_plain(cell: Any) -> str:
-    """单元格 cell_value → 纯文本。"""
+    """单元格 cell_value → 纯文本。
+
+    实测在线表格的 cell_value 直接是 {"text": "..."}；
+    兼容 SDK 注释中的 text_piece/number 形态。
+    """
     if not cell:
         return ""
+    if "text" in cell:
+        return str(cell["text"])
     if "text_piece" in cell:
         return str(cell["text_piece"].get("text", ""))
     if "number" in cell:

@@ -32,7 +32,8 @@ class FakeWedoc:
 
     def get_sheet_range_data(self, docid, sheet_id, range_str):
         self.calls.append(("range", docid, sheet_id, range_str))
-        return {"errcode": 0, "data": {"result": self._range_data}}
+        # 实测上游返回 {"errcode": 0, "grid_data": {...}}
+        return {"errcode": 0, "grid_data": self._range_data}
 
     def query_smartsheet(self, docid, **kwargs):
         self.calls.append(("smartsheet_sheets", docid, kwargs))
@@ -81,10 +82,10 @@ def test_get_spreadsheet_sheet_props():
 
 RANGE_2X2 = {
     "rows": [
-        {"values": [{"cell_value": {"text_piece": {"text": "question"}}},
-                    {"cell_value": {"text_piece": {"text": "answer"}}}]},
-        {"values": [{"cell_value": {"text_piece": {"text": "Q"}}},
-                    {"cell_value": {"text_piece": {"text": "A"}}}]},
+        {"values": [{"cell_value": {"text": "question"}},
+                    {"cell_value": {"text": "answer"}}]},
+        {"values": [{"cell_value": {"text": "Q"}},
+                    {"cell_value": {"text": "A"}}]},
     ]
 }
 
