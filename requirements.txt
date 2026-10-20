@@ -1,8 +1,0 @@
-fastapi>=0.115,<1.0
-uvicorn[standard]>=0.30
-fastmcp>=2.8
-python-dotenv>=1.0
-weixin-work-reborn>=0.2.0
-pytest>=8.0
-pytest-asyncio>=0.24
-httpx>=0.27

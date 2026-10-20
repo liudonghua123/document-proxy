@@ -88,5 +88,5 @@ MCP 配置示例（Claude Code / 通用 MCP 客户端）：
 ## 开发
 
     python -m venv .venv
-    .venv/Scripts/python.exe -m pip install -r requirements.txt
+    .venv/Scripts/python.exe -m pip install -e ".[dev]"
     .venv/Scripts/python.exe -m pytest -v
