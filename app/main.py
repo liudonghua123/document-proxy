@@ -1,28 +1,49 @@
 # app/main.py
 """应用工厂：组装 REST + MCP + 鉴权中间件。
 
-MCP 挂载说明：
-- fastmcp 4.x 使用 `mcp.http_app()`（内部路由为 '/mcp'），2.x 的
-  `streamable_http_app()` 在 4.x 已移除。
-- 将 mcp_app 挂载到 '/' 使其内部 '/mcp' 路由对外即 POST /mcp；
-  REST 路由先注册，Mount('/') 兜底，互不冲突。
-- lifespan：生产环境下 uvicorn 会执行 FastAPI 的 lifespan
-  （create_app 传入 mcp_app.lifespan，用于启动 MCP 会话管理器）。
-  但 httpx 的 ASGITransport 不会发送 lifespan 事件，因此用
-  _LazyLifespanASGI 包装：首次收到 HTTP 请求时若 lifespan 尚未
-  运行（例如测试传输、或 pytest-asyncio 每测试新建事件循环），
-  则在后台任务中启动它，使 POST /mcp 在测试中也能正常工作。
+MCP 挂载（参考 https://gofastmcp.com/integrations/fastapi#basic-mounting）：
+- mcp.http_app(path='/') 生成内部路由为 '/' 的 ASGI 应用；
+- FastAPI 传入 mcp_app.lifespan（MCP 会话管理器随应用启停）；
+- 挂载到 '/mcp'：Mount 剥离前缀后内部 '/' 路由对外即 POST /mcp/。
+  （注意不能用 http_app(path='/mcp') 再挂到 '/mcp'，
+  否则变成 /mcp/mcp。）
+- Starlette Mount 对无尾斜杠的 POST /mcp 会 307 重定向到 /mcp/，
+  而 MCP 客户端通常不跟随 POST 重定向，因此用 SlashRedirectMiddleware
+  在 ASGI 层内部把 '/mcp' 重写为 '/mcp/'（非 307，客户端无感知）。
+- 测试环境说明：httpx 的 ASGITransport 不发送 lifespan 事件，
+  MCP 会话管理器未启动，因此用 _LazyLifespanASGI 包装：
+  首次收到请求时若 lifespan 尚未运行，则在后台任务中启动它，
+  使 POST /mcp 在测试中也能正常工作；生产（uvicorn）走正常
+  lifespan 流程，包装器退化为透传（防重复启动）。
 """
 import asyncio
-from typing import Any, AsyncIterator, Optional
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .auth import BearerAuthMiddleware
 from .config import Settings
 from .mcp_server import mcp, set_service
 from .rest import envelope_http_exception_handler, router
 from .service import DocumentService
+
+
+class SlashRedirectMiddleware:
+    """把 POST/GET /mcp（无尾斜杠）内部重写为 /mcp/。
+
+    Starlette Mount 会对 '/mcp' 返回 307 重定向（redirect_slashes），
+    MCP 客户端通常不跟随 POST 重定向；内部重写对客户端透明。
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["path"] == "/mcp":
+            scope = dict(scope)
+            scope["path"] = "/mcp/"
+        await self.app(scope, receive, send)
 
 
 class _LazyLifespanASGI:
@@ -93,7 +114,7 @@ class _LazyLifespanASGI:
 
 def create_app(service: Optional[DocumentService] = None) -> _LazyLifespanASGI:
     settings = Settings()
-    mcp_app = mcp.http_app()  # 4.x：内部路由 '/mcp'；2.x 的 streamable_http_app 已移除
+    mcp_app = mcp.http_app(path="/")
 
     app = FastAPI(title="document-proxy", version="0.1.0", lifespan=mcp_app.lifespan)
     app.state.api_key = settings.api_key
@@ -103,7 +124,8 @@ def create_app(service: Optional[DocumentService] = None) -> _LazyLifespanASGI:
     app.include_router(router)
     # 上游错误响应保持 {"code": ..., "message": ...} 顶层 envelope
     app.add_exception_handler(HTTPException, envelope_http_exception_handler)
-    # REST 路由已注册，Mount('/') 兜底把其余路径（含 /mcp）交给 MCP 应用
-    app.mount("/", mcp_app)
+    # MCP 挂载到 /mcp；SlashRedirectMiddleware 使 /mcp（无斜杠）可用
+    app.add_middleware(SlashRedirectMiddleware)
+    app.mount("/mcp", mcp_app)
     app.add_middleware(BearerAuthMiddleware, api_key=settings.api_key)
     return _LazyLifespanASGI(app)

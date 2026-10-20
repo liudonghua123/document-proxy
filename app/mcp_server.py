@@ -1,11 +1,14 @@
 # app/mcp_server.py
-"""FastMCP 工具定义；service 由 main.create_app 注入。
+"""FastMCP 工具定义（传统 @mcp.tool 装饰器风格）。
 
+service 由 main.create_app 注入。
 注意：模块级全局 `_service` 假定每进程只有一个应用实例
 （每次 create_app() 会重新绑定它；创建多个 app 会使
 MCP 工具指向最后注入的 service）。
+
+工具为同步函数：fastmcp 默认 run_in_thread=True，
+在线程池中执行，不会阻塞事件循环（SDK 为阻塞式 http 调用）。
 """
-import inspect
 from typing import Any, Dict, List
 
 from fastmcp import FastMCP
@@ -22,84 +25,63 @@ def set_service(service) -> None:
     _service = service
 
 
-def _run(fn, *args):
-    import anyio
-    return anyio.to_thread.run_sync(fn, *args)
+def _call(fn, *args):
+    """调用 service；UpstreamError → ToolError。"""
+    try:
+        return fn(*args)
+    except UpstreamError as e:
+        raise ToolError(f"upstream error {e.errcode}: {e.errmsg}")
 
 
-def _tool(fn):
-    # fastmcp 4.x 不支持 *args/**kwargs 签名的工具函数，
-    # 因此按原参数显式包装（保持 JSON schema 干净）。
-    async def wrapper(*args, **kwargs):
-        try:
-            return await fn(*args, **kwargs)
-        except UpstreamError as e:
-            raise ToolError(f"upstream error {e.errcode}: {e.errmsg}")
-    wrapper.__name__ = fn.__name__
-    wrapper.__doc__ = fn.__doc__
-    wrapper.__annotations__ = fn.__annotations__
-    wrapper.__wrapped__ = fn
-    wrapper.__signature__ = inspect.signature(fn)
-    return wrapper
-
-
-@_tool
-async def get_doc_info(docid: str) -> Dict[str, Any]:
+@mcp.tool
+def get_doc_info(docid: str) -> Dict[str, Any]:
     """获取文档基础信息（docid、名称、类型、创建/修改时间）。
 
     对应企微接口：get_doc_base_info。
     """
-    return await _run(_service.get_doc_info, docid)
+    return _call(_service.get_doc_info, docid)
 
 
-@_tool
-async def get_doc_content(docid: str) -> str:
+@mcp.tool
+def get_doc_content(docid: str) -> str:
     """获取企微文档（doc_type=3）内容，返回 Markdown 文本。
 
     对应企微接口：document/get。
     """
-    return await _run(_service.get_doc_content, docid)
+    return _call(_service.get_doc_content, docid)
 
 
-@_tool
-async def list_spreadsheet_sheets(docid: str) -> List[Dict[str, Any]]:
+@mcp.tool
+def list_spreadsheet_sheets(docid: str) -> List[Dict[str, Any]]:
     """列出表格文档的工作表属性（sheet_id、标题、行列数）。
 
     对应企微接口：spreadsheet/get_sheet_properties。
     """
-    return await _run(_service.get_spreadsheet_sheet_props, docid)
+    return _call(_service.get_spreadsheet_sheet_props, docid)
 
 
-@_tool
-async def get_spreadsheet_records(docid: str, sheet_id: str) -> Dict[str, Any]:
+@mcp.tool
+def get_spreadsheet_records(docid: str, sheet_id: str) -> Dict[str, Any]:
     """获取表格（doc_type=4）指定工作表记录，紧凑格式 data: [{列名: 值}, ...]。
 
     对应企微接口：spreadsheet/get_sheet_range_data。
     """
-    return await _run(_service.get_spreadsheet_records, docid, sheet_id)
+    return _call(_service.get_spreadsheet_records, docid, sheet_id)
 
 
-@_tool
-async def list_smartsheet_sheets(docid: str) -> List[Dict[str, Any]]:
+@mcp.tool
+def list_smartsheet_sheets(docid: str) -> List[Dict[str, Any]]:
     """列出智能表格文档的子表列表（sheet_id、标题、类型）。
 
     对应企微接口：smartsheet/get_sheet。
     """
-    return await _run(_service.get_smartsheet_sheets, docid)
+    return _call(_service.get_smartsheet_sheets, docid)
 
 
-@_tool
-async def get_smartsheet_records(docid: str, sheet_id: str) -> List[Dict[str, Any]]:
+@mcp.tool
+def get_smartsheet_records(docid: str, sheet_id: str) -> List[Dict[str, Any]]:
     """获取智能表格（doc_type=10）指定子表记录，紧凑格式 data: [{字段名: 值}, ...]。
 
     对应企微接口：smartsheet/get_records。
     """
-    return await _run(_service.get_smartsheet_records, docid, sheet_id)
-
-
-mcp.tool(get_doc_info)
-mcp.tool(get_doc_content)
-mcp.tool(list_spreadsheet_sheets)
-mcp.tool(get_spreadsheet_records)
-mcp.tool(list_smartsheet_sheets)
-mcp.tool(get_smartsheet_records)
+    return _call(_service.get_smartsheet_records, docid, sheet_id)
