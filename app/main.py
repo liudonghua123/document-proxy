@@ -10,7 +10,7 @@ MCP 挂载说明：
   （create_app 传入 mcp_app.lifespan，用于启动 MCP 会话管理器）。
   但 httpx 的 ASGITransport 不会发送 lifespan 事件，因此用
   _LazyLifespanASGI 包装：首次收到 HTTP 请求时若 lifespan 尚未
-  运行（例如测试传输、或 pytest-asyncio 每个测试新建事件循环），
+  运行（例如测试传输、或 pytest-asyncio 每测试新建事件循环），
   则在后台任务中启动它，使 POST /mcp 在测试中也能正常工作。
 """
 import asyncio
@@ -29,6 +29,11 @@ class _LazyLifespanASGI:
     """按需启动被包装应用的 lifespan（首次 HTTP 请求时）。
 
     - 同一事件循环内只启动一次；
+    - 收到 ASGI lifespan scope（如 uvicorn 正常启动流程）时，
+      标记 lifespan 已由外部启动，_ensure_started 变为空操作，
+      避免 lifespan 被运行两次；
+    - lifespan 启动失败时把异常记录下来，等待方（首个 HTTP
+      请求）直接重新抛出，而不是无限挂起；
     - 检测到事件循环更换（pytest-asyncio 每测试新建 loop）时重启；
       fastmcp 的 lifespan 每次运行都会创建全新的 session manager，
       因此重启是安全的。
@@ -38,28 +43,51 @@ class _LazyLifespanASGI:
         self._app = app
         self._task: Optional[asyncio.Task] = None
         self._loop_id: Optional[int] = None
+        self._started = asyncio.Event()
+        self._error: Optional[BaseException] = None
         self._lock = asyncio.Lock()
 
     async def _ensure_started(self) -> None:
         loop_id = id(asyncio.get_running_loop())
         async with self._lock:
-            if self._task is not None and self._loop_id == loop_id:
+            if self._error is not None:
+                # lifespan 启动失败：向后续请求直接抛出已记录的异常，
+                # 而不是挂起或反复重试。
+                raise self._error
+            if self._started.is_set() and self._loop_id == loop_id:
+                # 已在当前事件循环启动（或由外部 lifespan scope 启动）
                 return
             self._loop_id = loop_id
-            started = asyncio.Event()
+            self._started = asyncio.Event()
+            self._error = None
 
             async def _run() -> None:
-                async with self._app.router.lifespan_context(self._app):
-                    started.set()
-                    await asyncio.Event().wait()
+                try:
+                    async with self._app.router.lifespan_context(self._app):
+                        self._started.set()
+                        await asyncio.Event().wait()
+                except BaseException as e:  # noqa: BLE001 - 原样传给等待方
+                    self._error = e
+                    self._started.set()
 
             self._task = asyncio.create_task(_run())
-            await started.wait()
+            await self._started.wait()
+            if self._error is not None:
+                raise self._error
 
     async def __call__(self, scope, receive, send) -> None:
-        if scope["type"] == "http":
+        if scope["type"] == "lifespan":
+            # 外部服务器（uvicorn 等）会自己跑 lifespan；
+            # 标记已启动，首个 HTTP 请求不再重复启动。
+            async with self._lock:
+                self._started.set()
+                self._loop_id = id(asyncio.get_running_loop())
+            await self._app(scope, receive, send)
+        elif scope["type"] == "http":
             await self._ensure_started()
-        await self._app(scope, receive, send)
+            await self._app(scope, receive, send)
+        else:
+            await self._app(scope, receive, send)
 
 
 def create_app(service: Optional[DocumentService] = None) -> _LazyLifespanASGI:
