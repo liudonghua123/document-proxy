@@ -1,5 +1,5 @@
 # app/rest.py
-"""REST 路由：/api/v1 只读接口。
+"""REST 路由：/api/v1 只读接口（对齐企微 wedoc API 名称）。
 
 响应约定：
 - 成功：{"code": 0, "message": "ok", "data": ...}
@@ -58,20 +58,9 @@ def _http_error(e: UpstreamError) -> HTTPException:
     )
 
 
-@router.get("/docs/{docid}", dependencies=[Depends(require_auth)])
-def get_doc_content(docid: str, request: Request) -> Dict[str, Any]:
-    try:
-        return {
-            "code": 0,
-            "message": "ok",
-            "data": request.app.state.service.get_doc_content(docid),
-        }
-    except UpstreamError as e:
-        raise _http_error(e)
-
-
-@router.get("/docs/{docid}/info", dependencies=[Depends(require_auth)])
+@router.get("/info/{docid}", dependencies=[Depends(require_auth)])
 def get_doc_info(docid: str, request: Request) -> Dict[str, Any]:
+    """文档/表格/智能表格基础信息（对应企微接口 get_doc_base_info）。"""
     try:
         return {
             "code": 0,
@@ -82,13 +71,58 @@ def get_doc_info(docid: str, request: Request) -> Dict[str, Any]:
         raise _http_error(e)
 
 
-@router.get("/spreadsheet/{docid}", dependencies=[Depends(require_auth)])
-def get_spreadsheet(docid: str, request: Request) -> Dict[str, Any]:
+@router.get("/document/{docid}", dependencies=[Depends(require_auth)])
+def get_doc_content(docid: str, request: Request) -> Dict[str, Any]:
+    """文档内容 Markdown（对应企微接口 document/get）。"""
     try:
         return {
             "code": 0,
             "message": "ok",
-            "data": request.app.state.service.get_spreadsheet(docid),
+            "data": request.app.state.service.get_doc_content(docid),
+        }
+    except UpstreamError as e:
+        raise _http_error(e)
+
+
+@router.get("/spreadsheet/{docid}", dependencies=[Depends(require_auth)])
+def get_spreadsheet_sheet_props(docid: str, request: Request) -> Dict[str, Any]:
+    """表格文档数据 = 工作表属性列表（对应企微接口 spreadsheet/get_sheet_properties）。"""
+    try:
+        return {
+            "code": 0,
+            "message": "ok",
+            "data": request.app.state.service.get_spreadsheet_sheet_props(docid),
+        }
+    except UpstreamError as e:
+        raise _http_error(e)
+
+
+@router.get(
+    "/spreadsheet/{docid}/{sheet_id}/records",
+    dependencies=[Depends(require_auth)],
+)
+def get_spreadsheet_records(
+    docid: str, sheet_id: str, request: Request
+) -> Dict[str, Any]:
+    """表格记录 = 指定 sheet 的紧凑数据（对应企微接口 spreadsheet/get_sheet_range_data）。"""
+    try:
+        return {
+            "code": 0,
+            "message": "ok",
+            "data": request.app.state.service.get_spreadsheet_records(docid, sheet_id),
+        }
+    except UpstreamError as e:
+        raise _http_error(e)
+
+
+@router.get("/smartsheet/{docid}", dependencies=[Depends(require_auth)])
+def get_smartsheet_sheets(docid: str, request: Request) -> Dict[str, Any]:
+    """智能表格文档数据 = sheet_list（对应企微接口 smartsheet/get_sheet）。"""
+    try:
+        return {
+            "code": 0,
+            "message": "ok",
+            "data": request.app.state.service.get_smartsheet_sheets(docid),
         }
     except UpstreamError as e:
         raise _http_error(e)
@@ -99,6 +133,7 @@ def get_spreadsheet(docid: str, request: Request) -> Dict[str, Any]:
     dependencies=[Depends(require_auth)],
 )
 def get_smartsheet_records(docid: str, sheet_id: str, request: Request) -> Dict[str, Any]:
+    """智能表格记录（对应企微接口 smartsheet/get_records）。"""
     try:
         return {
             "code": 0,

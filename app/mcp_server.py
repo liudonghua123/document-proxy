@@ -45,36 +45,61 @@ def _tool(fn):
 
 @_tool
 async def get_doc_info(docid: str) -> Dict[str, Any]:
-    """获取文档基础信息（docid、名称、类型、创建/修改时间）。"""
+    """获取文档基础信息（docid、名称、类型、创建/修改时间）。
+
+    对应企微接口：get_doc_base_info。
+    """
     return await _run(_service.get_doc_info, docid)
 
 
 @_tool
 async def get_doc_content(docid: str) -> str:
-    """获取企微文档（doc_type=3）内容，返回 Markdown 文本。"""
+    """获取企微文档（doc_type=3）内容，返回 Markdown 文本。
+
+    对应企微接口：document/get。
+    """
     return await _run(_service.get_doc_content, docid)
 
 
 @_tool
-async def list_sheets(docid: str) -> List[Dict[str, Any]]:
-    """列出表格/智能表格的工作表属性（sheet_id、标题、行列数）。"""
-    return await _run(_service.get_sheet_properties_only, docid)
+async def list_spreadsheet_sheets(docid: str) -> List[Dict[str, Any]]:
+    """列出表格文档的工作表属性（sheet_id、标题、行列数）。
+
+    对应企微接口：spreadsheet/get_sheet_properties。
+    """
+    return await _run(_service.get_spreadsheet_sheet_props, docid)
 
 
 @_tool
-async def get_spreadsheet_data(docid: str) -> List[Dict[str, Any]]:
-    """获取表格（doc_type=4）全部工作表数据，紧凑格式 data: [{列名: 值}, ...]。"""
-    return await _run(_service.get_spreadsheet, docid)
+async def get_spreadsheet_records(docid: str, sheet_id: str) -> Dict[str, Any]:
+    """获取表格（doc_type=4）指定工作表记录，紧凑格式 data: [{列名: 值}, ...]。
+
+    对应企微接口：spreadsheet/get_sheet_range_data。
+    """
+    return await _run(_service.get_spreadsheet_records, docid, sheet_id)
+
+
+@_tool
+async def list_smartsheet_sheets(docid: str) -> List[Dict[str, Any]]:
+    """列出智能表格文档的子表列表（sheet_id、标题、类型）。
+
+    对应企微接口：smartsheet/get_sheet。
+    """
+    return await _run(_service.get_smartsheet_sheets, docid)
 
 
 @_tool
 async def get_smartsheet_records(docid: str, sheet_id: str) -> List[Dict[str, Any]]:
-    """获取智能表格（doc_type=10）指定子表记录，紧凑格式 data: [{字段名: 值}, ...]。"""
+    """获取智能表格（doc_type=10）指定子表记录，紧凑格式 data: [{字段名: 值}, ...]。
+
+    对应企微接口：smartsheet/get_records。
+    """
     return await _run(_service.get_smartsheet_records, docid, sheet_id)
 
 
 mcp.tool(get_doc_info)
 mcp.tool(get_doc_content)
-mcp.tool(list_sheets)
-mcp.tool(get_spreadsheet_data)
+mcp.tool(list_spreadsheet_sheets)
+mcp.tool(get_spreadsheet_records)
+mcp.tool(list_smartsheet_sheets)
 mcp.tool(get_smartsheet_records)

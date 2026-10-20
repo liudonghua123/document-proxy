@@ -58,39 +58,36 @@ class DocumentService:
         self._check(resp)
         return node_to_markdown(resp.get("document", {}))
 
-    def get_sheet_properties_only(self, docid: str) -> List[Dict[str, Any]]:
-        props_resp = self._wedoc.get_sheet_properties(docid=docid)
-        self._check(props_resp)
-        return props_resp.get("properties", [])
+    def get_spreadsheet_sheet_props(self, docid: str) -> List[Dict[str, Any]]:
+        resp = self._wedoc.get_sheet_properties(docid=docid)
+        self._check(resp)
+        return resp.get("properties", [])
 
-    def get_spreadsheet(self, docid: str) -> List[Dict[str, Any]]:
-        props_resp = self._wedoc.get_sheet_properties(docid=docid)
-        self._check(props_resp)
-        result = []
-        for prop in props_resp.get("properties", []):
-            sheet_id = prop["sheet_id"]
-            row_count = prop.get("row_count", 0)
-            col_count = prop.get("column_count", 0)
-            if row_count <= 0 or col_count <= 0:
-                result.append({"sheet_id": sheet_id, "title": prop.get("title", ""), "data": []})
-                continue
-            # A1 表示法，上限保护：行<=1000、列<=200、单元格<=10000
-            n_rows = min(row_count, 1000)
-            n_cols = min(col_count, 200, max(1, 10000 // n_rows))
-            col_letter = _col_name(n_cols)
-            data_resp = self._wedoc.get_sheet_range_data(
-                docid=docid, sheet_id=sheet_id, range_str=f"A1:{col_letter}{n_rows}"
-            )
-            self._check(data_resp)
-            rows = data_resp.get("data", {}).get("result", {}).get("rows", [])
-            result.append(
-                {
-                    "sheet_id": sheet_id,
-                    "title": prop.get("title", ""),
-                    "data": grid_to_records(rows),
-                }
-            )
-        return result
+    def get_spreadsheet_records(self, docid: str, sheet_id: str) -> Dict[str, Any]:
+        props = self.get_spreadsheet_sheet_props(docid)
+        prop = next((p for p in props if p.get("sheet_id") == sheet_id), None)
+        if prop is None:
+            raise UpstreamError(1934008, f"sheet {sheet_id} not found")
+        row_count = prop.get("row_count", 0)
+        col_count = prop.get("column_count", 0)
+        if row_count <= 0 or col_count <= 0:
+            return {"sheet_id": sheet_id, "title": prop.get("title", ""), "data": []}
+        range_str = _a1_range(row_count, col_count)
+        data_resp = self._wedoc.get_sheet_range_data(
+            docid=docid, sheet_id=sheet_id, range_str=range_str
+        )
+        self._check(data_resp)
+        rows = data_resp.get("data", {}).get("result", {}).get("rows", [])
+        return {
+            "sheet_id": sheet_id,
+            "title": prop.get("title", ""),
+            "data": grid_to_records(rows),
+        }
+
+    def get_smartsheet_sheets(self, docid: str) -> List[Dict[str, Any]]:
+        resp = self._wedoc.query_smartsheet(docid=docid)
+        self._check(resp)
+        return resp.get("sheet_list", [])
 
     def get_smartsheet_records(self, docid: str, sheet_id: str) -> List[Dict[str, Any]]:
         records: List[Dict[str, Any]] = []
@@ -110,6 +107,13 @@ class DocumentService:
                 break
             offset = new_offset
         return records_to_compact(records)
+
+
+def _a1_range(n_rows: int, n_cols: int) -> str:
+    """A1 表示法范围，上限保护：行<=1000、列<=200、单元格<=10000。"""
+    n_rows = min(n_rows, 1000)
+    n_cols = min(n_cols, 200, max(1, 10000 // n_rows))
+    return f"A1:{_col_name(n_cols)}{n_rows}"
 
 
 def _col_name(n: int) -> str:
