@@ -41,7 +41,6 @@ class _LazyLifespanASGI:
 
     def __init__(self, app) -> None:
         self._app = app
-        self._task: Optional[asyncio.Task] = None
         self._loop_id: Optional[int] = None
         self._started = asyncio.Event()
         self._error: Optional[BaseException] = None
@@ -70,7 +69,9 @@ class _LazyLifespanASGI:
                     self._error = e
                     self._started.set()
 
-            self._task = asyncio.create_task(_run())
+            # 后台 lifespan 任务从不显式退出：懒启动的 lifespan
+            # 生命周期与进程一致，由进程退出统一清理。
+            asyncio.create_task(_run())
             await self._started.wait()
             if self._error is not None:
                 raise self._error
