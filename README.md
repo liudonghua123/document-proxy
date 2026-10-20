@@ -82,7 +82,7 @@ MCP 配置示例（Claude Code / 通用 MCP 客户端）：
 
 ## 错误处理
 
-- REST：上游 errcode≠0 → 404（文档不存在，errcode 1934008）或 502（其他上游错误），detail 含 errcode/errmsg；401 表示 API_KEY 无效
+- REST：上游 errcode≠0 → 404（文档不存在，errcode 1934008）或 502（其他上游错误），body 为 `{"code": <errcode>, "message": <errmsg>}`；401 表示 API_KEY 无效
 - MCP：上游错误以 ToolError 返回（文本含 errcode/errmsg）
 
 ## 开发
@@ -90,3 +90,5 @@ MCP 配置示例（Claude Code / 通用 MCP 客户端）：
     python -m venv .venv
     .venv/Scripts/python.exe -m pip install -e ".[dev]"
     .venv/Scripts/python.exe -m pytest -v
+
+MCP 集成参考：https://gofastmcp.com/integrations/fastapi#basic-mounting
