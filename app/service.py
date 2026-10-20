@@ -105,7 +105,10 @@ class DocumentService:
             records.extend(resp.get("records", []))
             if not resp.get("has_more"):
                 break
-            offset = resp.get("next", offset + 1000)
+            new_offset = resp.get("next", offset + 1000)
+            if new_offset <= offset:  # 单调性保护：防上游异常导致死循环
+                break
+            offset = new_offset
         return records_to_compact(records)
 
 

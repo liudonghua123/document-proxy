@@ -34,6 +34,11 @@ class FakeWedoc:
 
     def query_records(self, docid, sheet_id, **kwargs):
         self.calls.append(("records", docid, sheet_id, kwargs))
+        if isinstance(self._records, list) and self._records and isinstance(self._records[0], dict) and "records" in self._records[0]:
+            page = self._records.pop(0)
+            resp = dict(page)
+            resp.setdefault("records", [])
+            return resp
         return {"errcode": 0, "records": self._records or [], "total": len(self._records or [])}
 
 
@@ -87,3 +92,43 @@ def test_get_sheet_properties_only():
     assert svc.get_sheet_properties_only("d1") == [
         {"sheet_id": "s1", "title": "T", "row_count": 3, "column_count": 2}
     ]
+
+
+def test_get_smartsheet_records_multi_page():
+    fake = FakeWedoc(
+        records=[
+            {"has_more": True, "next": 1000, "records": [{"record_id": "r1", "values": {"k": "v1"}}]},
+            {"has_more": False, "records": [{"record_id": "r2", "values": {"k": "v2"}}]},
+        ]
+    )
+    svc = make_service(fake)
+    assert svc.get_smartsheet_records("d1", "s1") == [{"k": "v1"}, {"k": "v2"}]
+    record_calls = [c for c in fake.calls if c[0] == "records"]
+    assert len(record_calls) == 2
+    assert record_calls[0][3]["offset"] == 0
+    assert record_calls[0][3]["limit"] == 1000
+    assert record_calls[0][3]["key_type"] == "CELL_VALUE_KEY_TYPE_FIELD_TITLE"
+    assert record_calls[1][3]["offset"] == 1000
+
+
+def test_get_smartsheet_records_stops_on_non_monotonic_next():
+    fake = FakeWedoc(
+        records=[
+            {"has_more": True, "next": 0, "records": [{"record_id": "r1", "values": {"k": "v1"}}]},
+        ]
+    )
+    svc = make_service(fake)
+    # next (0) <= 当前 offset (0)：不应死循环，只取一页
+    assert svc.get_smartsheet_records("d1", "s1") == [{"k": "v1"}]
+    assert len([c for c in fake.calls if c[0] == "records"]) == 1
+
+
+def test_get_spreadsheet_a1_clamp():
+    fake = FakeWedoc(
+        props=[{"sheet_id": "s1", "title": "Big", "row_count": 5000, "column_count": 600}],
+        range_data={"rows": []},
+    )
+    svc = make_service(fake)
+    result = svc.get_spreadsheet("d1")
+    assert result == [{"sheet_id": "s1", "title": "Big", "data": []}]
+    assert ("range", "d1", "s1", "A1:J1000") in fake.calls
