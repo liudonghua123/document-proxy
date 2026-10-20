@@ -7,12 +7,15 @@
 复制 `.env.example` 为 `.env` 并填写：
 
 - `API_KEY`：调用方鉴权（Bearer）
-- `WEIXIN_WORK_CORP_ID` / `WEIXIN_WORK_APP_SECRET`
-- `WEIXIN_WORK_DOC_SECRET`（优先）或 `WEIXIN_WORK_CONTACTS_SYNC_SECRET`（回退）
+- `WEIXIN_WORK_CORP_ID`：企微企业 ID
+- `WEIXIN_WORK_DOC_SECRET`：文档应用 secret
+- `DEBUG`：设为 `true` 时 uvicorn 自动重载（代码改动后重启）
 
 ## 启动
 
-    .venv/Scripts/python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+    .venv/Scripts/python.exe main.py
+
+（host/port 取自 .env 的 `HOST`/`PORT`，默认 0.0.0.0:8000）
 
 ## REST
 

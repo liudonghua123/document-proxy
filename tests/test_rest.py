@@ -28,7 +28,6 @@ HEADERS = {"Authorization": "Bearer k1"}
 def app(monkeypatch):
     monkeypatch.setenv("API_KEY", "k1")
     monkeypatch.setenv("WEIXIN_WORK_CORP_ID", "corp")
-    monkeypatch.setenv("WEIXIN_WORK_APP_SECRET", "s")
     monkeypatch.setenv("WEIXIN_WORK_DOC_SECRET", "ds")
     from app import main
     return main.create_app(service=StubService())

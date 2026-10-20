@@ -127,6 +127,8 @@ class _SdkConfigAdapter:
     def __init__(self, settings: Settings) -> None:
         self.base_url = settings.base_url
         self.corp_id = settings.corp_id
-        self.app_secret = settings.app_secret
+        # SDK 要求这两个属性存在，但本项目只用文档 token 路径（doc_secret），
+        # 因此直接复用 doc_secret 占位。
+        self.app_secret = settings.doc_secret
         self.doc_secret = settings.doc_secret
         self.contacts_sync_secret = settings.doc_secret

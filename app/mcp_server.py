@@ -1,5 +1,10 @@
 # app/mcp_server.py
-"""FastMCP 工具定义；service 由 main.create_app 注入。"""
+"""FastMCP 工具定义；service 由 main.create_app 注入。
+
+注意：模块级全局 `_service` 假定每进程只有一个应用实例
+（每次 create_app() 会重新绑定它；创建多个 app 会使
+MCP 工具指向最后注入的 service）。
+"""
 import inspect
 from typing import Any, Dict, List
 
