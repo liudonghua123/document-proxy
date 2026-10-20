@@ -33,9 +33,31 @@ def grid_to_records(rows: List[Dict[str, Any]]) -> List[Dict[str, str]]:
     return [dict(zip(header, row)) for row in body]
 
 
+def _value_to_plain(value: Any) -> str:
+    """智能表格单元格值 → 纯文本（剥离 type/列表包装）。"""
+    if value is None or value == "":
+        return ""
+    if isinstance(value, list):
+        return "".join(_value_to_plain(v) for v in value)
+    if isinstance(value, dict):
+        if "text" in value:
+            return str(value["text"])
+        return "".join(_value_to_plain(v) for v in value.values())
+    return str(value)
+
+
 def records_to_compact(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """智能表格 records（key_type=FIELD_TITLE）→ 只保留 values 的紧凑列表。"""
-    return [r.get("values", {}) for r in records]
+    """智能表格 records（key_type=FIELD_TITLE）→ 紧凑纯文本列表。
+
+    空记录（values 为空/None）整体丢弃。
+    """
+    compact = []
+    for r in records:
+        values = r.get("values") or {}
+        if not values:
+            continue
+        compact.append({k: _value_to_plain(v) for k, v in values.items()})
+    return compact
 
 
 def node_to_markdown(node: Dict[str, Any]) -> str:

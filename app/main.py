@@ -16,12 +16,12 @@ MCP 挂载说明：
 import asyncio
 from typing import Any, AsyncIterator, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from .auth import BearerAuthMiddleware
 from .config import Settings
 from .mcp_server import mcp, set_service
-from .rest import router
+from .rest import envelope_http_exception_handler, router
 from .service import DocumentService
 
 
@@ -101,6 +101,8 @@ def create_app(service: Optional[DocumentService] = None) -> _LazyLifespanASGI:
 
     set_service(app.state.service)
     app.include_router(router)
+    # 上游错误响应保持 {"code": ..., "message": ...} 顶层 envelope
+    app.add_exception_handler(HTTPException, envelope_http_exception_handler)
     # REST 路由已注册，Mount('/') 兜底把其余路径（含 /mcp）交给 MCP 应用
     app.mount("/", mcp_app)
     app.add_middleware(BearerAuthMiddleware, api_key=settings.api_key)

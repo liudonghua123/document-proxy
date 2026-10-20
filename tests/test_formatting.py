@@ -44,14 +44,47 @@ def test_grid_empty():
 
 # ---- records_to_compact：智能表格 → 紧凑 data ----
 
-def test_records_to_compact_values_only():
+def test_records_typed_list_values_to_plain():
     records = [
-        {"record_id": "r1", "values": {"question": "Q1", "answer": "A1"}},
-        {"record_id": "r2", "values": {"question": "Q2", "answer": "A2"}},
+        {
+            "record_id": "r1",
+            "values": {
+                "question": [{"text": "你好", "type": "text"}],
+                "answer": [{"text": "好", "type": "text"}],
+                "question_like": [{"text": "你好吗", "type": "text"}],
+            },
+        },
     ]
     assert records_to_compact(records) == [
-        {"question": "Q1", "answer": "A1"},
-        {"question": "Q2", "answer": "A2"},
+        {"question": "你好", "answer": "好", "question_like": "你好吗"}
+    ]
+
+
+def test_records_empty_row_dropped():
+    records = [
+        {"record_id": "r1", "values": {}},
+        {"record_id": "r2", "values": {"question": [{"text": "Q", "type": "text"}]}},
+        {"record_id": "r3", "values": None},
+    ]
+    assert records_to_compact(records) == [
+        {"question": "Q"},
+    ]
+
+
+def test_records_mixed_scalar_values():
+    records = [
+        {
+            "record_id": "r1",
+            "values": {
+                "name": "plain",
+                "count": 3,
+                "flag": True,
+                "typed": [{"text": "T", "type": "text"}],
+            },
+        },
+    ]
+    assert records_to_compact(records) == [
+        {"name": "plain", "count": "3", "flag": "True", "typed": "T"}
     ]
 
 

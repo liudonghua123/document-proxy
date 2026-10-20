@@ -37,7 +37,7 @@ async def test_doc_content_ok(app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
         r = await c.get("/api/v1/docs/d1", headers=HEADERS)
     assert r.status_code == 200
-    assert r.json() == {"data": "# hi\n"}
+    assert r.json() == {"code": 0, "message": "ok", "data": "# hi\n"}
 
 
 async def test_unauthorized(app):
@@ -50,9 +50,13 @@ async def test_unauthorized(app):
 
 async def test_spreadsheet_compact(app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
-        r = await c.get("/api/v1/sheets/d1", headers=HEADERS)
+        r = await c.get("/api/v1/spreadsheet/d1", headers=HEADERS)
     assert r.status_code == 200
-    assert r.json() == {"data": [{"sheet_id": "s1", "title": "S", "data": [{"q": "1"}]}]}
+    assert r.json() == {
+        "code": 0,
+        "message": "ok",
+        "data": [{"sheet_id": "s1", "title": "S", "data": [{"q": "1"}]}],
+    }
 
 
 async def test_upstream_error_maps_404(app):
@@ -67,20 +71,25 @@ async def test_upstream_error_maps_404(app):
     async with AsyncClient(transport=ASGITransport(app=app404), base_url="http://t") as c:
         r = await c.get("/api/v1/docs/d1", headers=HEADERS)
     assert r.status_code == 404
+    assert r.json() == {"code": 1934008, "message": "doc not found"}
 
 
 async def test_doc_info_ok(app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
         r = await c.get("/api/v1/docs/d1/info", headers=HEADERS)
     assert r.status_code == 200
-    assert r.json() == {"data": {"docid": "d1", "doc_name": "n", "doc_type": 3}}
+    assert r.json() == {
+        "code": 0,
+        "message": "ok",
+        "data": {"docid": "d1", "doc_name": "n", "doc_type": 3},
+    }
 
 
 async def test_smartsheet_records_ok(app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
-        r = await c.get("/api/v1/smartsheets/d1/s9/records", headers=HEADERS)
+        r = await c.get("/api/v1/smartsheet/d1/s9/records", headers=HEADERS)
     assert r.status_code == 200
-    assert r.json() == {"data": [{"k": "v"}]}
+    assert r.json() == {"code": 0, "message": "ok", "data": [{"k": "v"}]}
 
 
 async def test_upstream_error_maps_502(app):
@@ -95,8 +104,7 @@ async def test_upstream_error_maps_502(app):
     async with AsyncClient(transport=ASGITransport(app=app502), base_url="http://t") as c:
         r = await c.get("/api/v1/docs/d1", headers=HEADERS)
     assert r.status_code == 502
-    assert r.json()["detail"]["errcode"] == 50001
-    assert r.json()["detail"]["errmsg"] == "boom"
+    assert r.json() == {"code": 50001, "message": "boom"}
 
 
 MCP_ACCEPT = {"Accept": "application/json, text/event-stream"}

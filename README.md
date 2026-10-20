@@ -21,12 +21,25 @@
 
 - `GET /api/v1/docs/{docid}` — 文档内容（Markdown）
 - `GET /api/v1/docs/{docid}/info` — 文档基础信息
-- `GET /api/v1/sheets/{docid}` — 表格数据（紧凑 `data: [{列: 值}]`）
-- `GET /api/v1/smartsheets/{docid}/{sheet_id}/records` — 智能表格记录（紧凑）
+- `GET /api/v1/spreadsheet/{docid}` — 表格数据（紧凑 `data: [{列: 值}]`）
+- `GET /api/v1/smartsheet/{docid}/{sheet_id}/records` — 智能表格记录（紧凑）
+
+响应统一 envelope：成功 `{"code": 0, "message": "ok", "data": ...}`；
+上游错误保持 HTTP 404/502，body 为 `{"code": <errcode>, "message": <errmsg>}`。
 
 请求头：`Authorization: Bearer <API_KEY>`
 
     curl -H "Authorization: Bearer $API_KEY" http://localhost:8000/api/v1/docs/DOCID
+
+表格（spreadsheet）示例：
+
+    curl -H "Authorization: Bearer $API_KEY" \
+      http://localhost:8000/api/v1/spreadsheet/dc2Ca04FoEzAiZhRrlEFYKDO_tSq-LsB9xVg---tXnpC7D0M-F9N-BxaYvY_IX84ZK6CgYoXxtvl2v6X-7zZ0StA
+
+智能表格（smartsheet）示例：
+
+    curl -H "Authorization: Bearer $API_KEY" \
+      http://localhost:8000/api/v1/smartsheet/dcZs2MUbIZRBXXpAN7Uin2WbVNUGEHHgvGLFBnQ6aD7DKctc9JYIQcQZ2YCBhZg4hvGRL8TwjtSW30AvmrZ6Rzfw/q979lj/records
 
 ## MCP
 
