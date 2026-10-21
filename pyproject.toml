@@ -13,7 +13,7 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     "fastmcp>=2.8",
     "python-dotenv>=1.0",
-    "weixin-work-reborn>=0.2.0",
+    "weixin-work-reborn>=0.2.1",
 ]
 
 [project.optional-dependencies]
